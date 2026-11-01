@@ -1,6 +1,6 @@
 # n8n Research Pipeline
 
-A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow, the Tavily Search API, an LLM report generator, and automated email review dispatch via Gmail.
+A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow, the Tavily Search API, an LLM report generator, human-in-the-loop review via Gmail, and decision routing.
 
 ## Workspace Structure
 
@@ -9,7 +9,7 @@ A minimal, focused research ingestion pipeline workspace connecting a lightweigh
 ├── index.html        # Minimalist single-column input form (no card containers)
 ├── style.css         # Dark slate theme styling with emerald green accent
 ├── app.js            # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json     # n8n workflow (Webhook -> Tavily -> LLM -> Gmail)
+├── workflow.json     # Complete extended n8n workflow (Webhook -> Tavily -> LLM -> Gmail -> Wait for Response -> Switch)
 └── README.md         # Setup and usage documentation
 ```
 
@@ -38,7 +38,29 @@ Then open `http://localhost:3000` in your browser.
 
 ## 2. n8n Workflow (`workflow.json`)
 
-### Workflow Architecture
+### Workflow Pipeline
+```
+[Webhook Trigger]
+       │
+       ▼
+[Query Tavily API]
+       │
+       ▼
+[LLM Generate Report]
+       │
+       ▼
+[Send Gmail to Reviewer] (Initial draft dispatch)
+       │
+       ▼
+[Send and wait for response] (Listens for reviewer's reply)
+       │
+       ▼
+[Review Decision Switch]
+       ├── Branch 0: contains 'APPROVED'
+       └── Branch 1: startsWith 'FEEDBACK:'
+```
+
+### Node Details
 1. **Webhook Trigger Node (`n8n-nodes-base.webhook`)**:
    - Method: `POST`
    - Path: `research-request`
@@ -51,22 +73,23 @@ Then open `http://localhost:3000` in your browser.
    - Options: `advanced` search depth with `include_answer: true`.
 
 3. **LLM Node (`n8n-nodes-base.openAi`)**:
-   - Ingests both the Tavily search results and original request parameters (`topic`, `subtopics`, `description`).
-   - Generates an HTML-only research report utilizing semantic markup: `<h1>`, `<h2>`, `<p>`, and unordered lists (`<ul>`, `<li>`).
-   - Produces raw semantic HTML ready for email rendering (no markdown code blocks).
+   - Ingests Tavily search results and original request parameters (`topic`, `subtopics`, `description`).
+   - Generates an HTML-only research report utilizing semantic tags: `<h1>`, `<h2>`, `<p>`, and unordered lists (`<ul>`, `<li>`).
 
-4. **Gmail Node (`n8n-nodes-base.gmail`)**:
-   - Sends the HTML report directly to `reviewer_email`.
-   - Includes review instructions at the top:
-     > *Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.*
-   - Embeds `reportHtml` within the email body.
+4. **Send Gmail to Reviewer (`n8n-nodes-base.gmail`)**:
+   - Operation: `send`
+   - Sends the formatted report HTML to `reviewer_email` with instructions to review and reply.
+
+5. **Send and wait for response (`n8n-nodes-base.gmail`)**:
+   - Operation: `sendAndWait`
+   - Pauses execution and listens for the reviewer's incoming response to the initial draft.
+
+6. **Review Decision Switch (`n8n-nodes-base.switch`)**:
+   - **Branch 1 (Output 0)**: Evaluates if the incoming email body contains the exact string `APPROVED`.
+   - **Branch 2 (Output 1)**: Evaluates if the incoming email body starts with `FEEDBACK:`.
 
 ### Importing into n8n
 1. Open your n8n web interface (e.g. `http://localhost:5678`).
 2. Go to **Workflows** &rarr; click **...** (top right) &rarr; **Import from File**.
 3. Select [workflow.json](file:///home/muaz/projects/n8n-research-pipeline/workflow.json).
-4. Configure credentials:
-   - Tavily API key: in environment variable `TAVILY_API_KEY` or in the HTTP Request node.
-   - OpenAI account credentials for the LLM node.
-   - Gmail OAuth2 credentials for the Gmail node.
-5. Activate the workflow.
+4. Configure credentials (Tavily API, OpenAI, and Gmail OAuth2) and activate.
