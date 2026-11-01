@@ -1,6 +1,6 @@
 # n8n Research Pipeline
 
-A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow, the Tavily Search API, an LLM report generator, human-in-the-loop review via Gmail, and decision routing.
+A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow, the Tavily Search API, an LLM report generator, human-in-the-loop review via Gmail, and an automated feedback revision loop.
 
 ## Workspace Structure
 
@@ -9,7 +9,7 @@ A minimal, focused research ingestion pipeline workspace connecting a lightweigh
 ├── index.html        # Minimalist single-column input form (no card containers)
 ├── style.css         # Dark slate theme styling with emerald green accent
 ├── app.js            # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json     # Complete extended n8n workflow (Webhook -> Tavily -> LLM -> Gmail -> Wait for Response -> Switch)
+├── workflow.json     # Complete n8n workflow with feedback loop (Webhook -> Tavily -> LLM -> Gmail -> Wait -> Switch -> Revise -> Loop)
 └── README.md         # Setup and usage documentation
 ```
 
@@ -38,58 +38,35 @@ Then open `http://localhost:3000` in your browser.
 
 ## 2. n8n Workflow (`workflow.json`)
 
-### Workflow Pipeline
-```
-[Webhook Trigger]
-       │
-       ▼
-[Query Tavily API]
-       │
-       ▼
-[LLM Generate Report]
-       │
-       ▼
-[Send Gmail to Reviewer] (Initial draft dispatch)
-       │
-       ▼
-[Send and wait for response] (Listens for reviewer's reply)
-       │
-       ▼
-[Review Decision Switch]
-       ├── Branch 0: contains 'APPROVED'
-       └── Branch 1: startsWith 'FEEDBACK:'
+### Workflow Pipeline & Feedback Loop
+
+```mermaid
+flowchart TD
+    A["Webhook Trigger"] --> B["Query Tavily API"]
+    B --> C["LLM Generate Report"]
+    C --> D["Send Gmail to Reviewer<br/>(Initial Draft)"]
+    D --> E["Send and wait for response<br/>(Wait for Reviewer)"]
+    E --> F{"Review Decision Switch"}
+    F -->|Branch 0: Contains 'APPROVED'| G["Approved / Complete"]
+    F -->|Branch 1: Starts with 'FEEDBACK:'| H["Extract Feedback Comments"]
+    H --> I["Revise Report with Feedback<br/>(LLM Node)"]
+    I --> J["Send Revised Report to Reviewer<br/>(Gmail Node)"]
+    J -->|Loop Back| E
 ```
 
-### Node Details
-1. **Webhook Trigger Node (`n8n-nodes-base.webhook`)**:
-   - Method: `POST`
-   - Path: `research-request`
-   - Receives JSON payload with `topic`, `subtopics`, `description`, `reviewer_email`.
-
-2. **HTTP Request Node (`n8n-nodes-base.httpRequest`)**:
-   - Endpoint: `https://api.tavily.com/search`
-   - Method: `POST`
-   - Query Expression: `={{ $json.body?.topic || $json.topic }}`
-   - Options: `advanced` search depth with `include_answer: true`.
-
-3. **LLM Node (`n8n-nodes-base.openAi`)**:
-   - Ingests Tavily search results and original request parameters (`topic`, `subtopics`, `description`).
-   - Generates an HTML-only research report utilizing semantic tags: `<h1>`, `<h2>`, `<p>`, and unordered lists (`<ul>`, `<li>`).
-
-4. **Send Gmail to Reviewer (`n8n-nodes-base.gmail`)**:
-   - Operation: `send`
-   - Sends the formatted report HTML to `reviewer_email` with instructions to review and reply.
-
-5. **Send and wait for response (`n8n-nodes-base.gmail`)**:
-   - Operation: `sendAndWait`
-   - Pauses execution and listens for the reviewer's incoming response to the initial draft.
-
-6. **Review Decision Switch (`n8n-nodes-base.switch`)**:
-   - **Branch 1 (Output 0)**: Evaluates if the incoming email body contains the exact string `APPROVED`.
-   - **Branch 2 (Output 1)**: Evaluates if the incoming email body starts with `FEEDBACK:`.
+### Feedback Branch Nodes
+1. **Extract Feedback Comments (`n8n-nodes-base.code`)**:
+   - Parses incoming email text starting with `FEEDBACK:` and strips the prefix to extract clean reviewer comments (`feedback_text`, `comments`).
+2. **Revise Report with Feedback (`n8n-nodes-base.openAi`)**:
+   - Ingests the original topic (`$('Webhook Trigger').item.json`), the most recent HTML report, and the reviewer's feedback text.
+   - Instructed to output updated, clean semantic HTML (`<h1>`, `<h2>`, `<p>`, `<ul>`, `<li>`) incorporating the requested changes.
+3. **Send Revised Report to Reviewer (`n8n-nodes-base.gmail`)**:
+   - Re-emails the revised report HTML to `reviewer_email` with the same review instructions at the top:
+     > *"Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'."*
+   - Its output is wired directly back to **Send and wait for response** (`operation: sendAndWait`), creating a multi-turn human-in-the-loop revision cycle.
 
 ### Importing into n8n
 1. Open your n8n web interface (e.g. `http://localhost:5678`).
 2. Go to **Workflows** &rarr; click **...** (top right) &rarr; **Import from File**.
 3. Select [workflow.json](file:///home/muaz/projects/n8n-research-pipeline/workflow.json).
-4. Configure credentials (Tavily API, OpenAI, and Gmail OAuth2) and activate.
+4. Configure credentials (Tavily API, OpenAI, Gmail OAuth2) and activate.

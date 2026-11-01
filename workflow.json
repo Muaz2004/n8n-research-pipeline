@@ -1,5 +1,5 @@
 {
-  "name": "Research Pipeline - Trigger, Tavily Search, LLM Report & Email Review",
+  "name": "Research Pipeline - Trigger, Tavily Search, LLM Report, Review & Feedback Loop",
   "nodes": [
     {
       "parameters": {
@@ -111,7 +111,7 @@
         "operation": "sendAndWait",
         "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
         "subject": "=Review Follow-up: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the initial draft report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.text || $json.reportHtml || '' }}\n</div>",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text || '' }}\n</div>",
         "options": {}
       },
       "id": "c5d6e7f8-9012-3456-789a-bcdef0123456",
@@ -179,6 +179,72 @@
         1520,
         340
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.item.json;\nconst text = inputData.body || inputData.text || inputData.message || inputData.response || '';\nconst feedbackComments = text.replace(/^FEEDBACK:\\s*/i, '').trim();\n\nreturn {\n  json: {\n    ...inputData,\n    feedback_text: feedbackComments,\n    feedbackComments: feedbackComments,\n    comments: feedbackComments\n  }\n};"
+      },
+      "id": "e7f89012-3456-789a-bcde-f0123456789a",
+      "name": "Extract Feedback Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert research analyst. You will receive an original research topic, the current HTML research report, and the reviewer's feedback comments. Revise and enhance the HTML research report to address and incorporate the feedback. Utilize semantic tags like <h1>, <h2>, <p>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the revised, clean semantic HTML markup."
+            },
+            {
+              "role": "user",
+              "content": "=Original Topic: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}\n\nCurrent HTML Report:\n{{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text }}\n\nReviewer Feedback Comments:\n{{ $json.feedback_text || $json.feedbackComments || $json.comments || ($json.body || $json.text || $json.message || '').replace(/^FEEDBACK:\\s*/i, '').trim() }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "f8901234-5678-9abc-def0-123456789abc",
+      "name": "Revise Report with Feedback",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        2020,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Revised Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.message?.content || $json.reportHtml || $json.text }}\n</div>",
+        "options": {}
+      },
+      "id": "a9012345-6789-abcdef-0123-456789abcdef",
+      "name": "Send Revised Report to Reviewer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2260,
+        440
+      ]
     }
   ],
   "pinData": {},
@@ -237,13 +303,58 @@
           }
         ]
       ]
+    },
+    "Review Decision Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract Feedback Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Feedback Comments": {
+      "main": [
+        [
+          {
+            "node": "Revise Report with Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revise Report with Feedback": {
+      "main": [
+        [
+          {
+            "node": "Send Revised Report to Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Revised Report to Reviewer": {
+      "main": [
+        [
+          {
+            "node": "Send and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "c2b3456d-7890-5ef0-1234-56789abcdef0",
+  "versionId": "d3c4567e-8901-6fa1-2345-6789abcdef01",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "n8n-research-pipeline-workspace"
