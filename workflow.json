@@ -1,0 +1,80 @@
+{
+  "name": "Research Pipeline - Trigger & Tavily Search",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-request",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "1d8b671a-2895-46f9-b883-8a0a9829f001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        340
+      ],
+      "webhookId": "research-request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"api_key\": \"{{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}\",\n  \"query\": \"{{ $json.body?.topic || $json.topic }}\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "7f09312b-bc66-419b-a016-1f7c7569e002",
+      "name": "Query Tavily API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query Tavily API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f7d750fa-b1e2-45e3-9794-52d3a3399432",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-research-pipeline-workspace"
+  },
+  "tags": []
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Research Pipeline Request</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="content-container">
+    <header class="header">
+      <span class="badge">n8n Pipeline</span>
+      <h1 class="title">New Research Task</h1>
+      <p class="subtitle">Submit parameters to initiate automated web retrieval and synthesis.</p>
+    </header>
+
+    <form id="research-form" class="research-form">
+      <div class="form-group">
+        <label for="topic">Topic</label>
+        <input 
+          type="text" 
+          id="topic" 
+          name="topic" 
+          placeholder="e.g., Post-transcriptional gene regulation in longevity" 
+          required 
+          autocomplete="off"
+        />
+        <span class="hint">The core subject query for Tavily web search.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="subtopics">Subtopics</label>
+        <input 
+          type="text" 
+          id="subtopics" 
+          name="subtopics" 
+          placeholder="e.g., microRNA biomarkers, alternative splicing, senescence" 
+          autocomplete="off"
+        />
+        <span class="hint">Comma-separated target domains or secondary research angles.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description & Context</label>
+        <textarea 
+          id="description" 
+          name="description" 
+          rows="4" 
+          placeholder="Detail specific criteria, hypotheses, target databases, or boundaries for the pipeline..."
+          required
+        ></textarea>
+        <span class="hint">Context used for synthesizing and validating relevance.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="reviewer_email">Reviewer Email</label>
+        <input 
+          type="email" 
+          id="reviewer_email" 
+          name="reviewer_email" 
+          placeholder="researcher@organization.org" 
+          required 
+          autocomplete="email"
+        />
+        <span class="hint">Destination for synthesized findings and approval alerts.</span>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" id="submit-btn" class="btn-primary">
+          <span class="btn-text">Dispatch Request</span>
+          <span class="btn-icon">&rarr;</span>
+        </button>
+      </div>
+
+      <div id="status-message" class="status-message" aria-live="polite"></div>
+    </form>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
