@@ -34,7 +34,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"api_key\": \"{{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}\",\n  \"query\": \"{{ $json.body?.topic || $json.topic || ($('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '') }}\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
+        "jsonBody": "={\n  \"api_key\": \"{{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}\",\n  \"query\": \"{{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || $json.body?.topic || $json.topic || '' }}\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
         "options": {
           "response": {
             "response": {
@@ -43,7 +43,7 @@
           }
         }
       },
-      "id": "7f09312b-bc66-419b-a016-1f7c7569e002",
+      "id": "3c4d5e6f-789a-bcde-f012-3456789abcde",
       "name": "Query Tavily API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -65,11 +65,11 @@
           "messages": [
             {
               "role": "system",
-              "content": "You are an expert research analyst. You will be provided with research request parameters (topic, subtopics, description) and Tavily web search results. Generate an HTML-only research report utilizing semantic tags like <h1>, <h2>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the clean, semantic HTML markup for the report."
+              "content": "You are an expert research analyst. Your task is to generate a comprehensive, in-depth research report based on the provided search results and user specifications.\n\nSTRICT OUTPUT REQUIREMENT: Output ONLY valid, semantic HTML markup (using tags such as <h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <blockquote>). Do NOT include Markdown formatting (do not use backticks or ```html). Do NOT include <html>, <head>, or <body> wrapper tags. Return ONLY the inner HTML content formatted cleanly."
             },
             {
               "role": "user",
-              "content": "=Original Form Request:\n- Topic: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}\n- Subtopics: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics) : '' }}\n- Description: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description) : '' }}\n- Reviewer Email: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}\n\nTavily JSON Response:\n{{ JSON.stringify($json) }}"
+              "content": "=Topic: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}\nSubtopics: {{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}\nDescription: {{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}\nReviewer Email: {{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}\n\nTavily Research Findings:\n{{ JSON.stringify($json) }}"
             }
           ]
         },
@@ -77,7 +77,7 @@
           "temperature": 0.3
         }
       },
-      "id": "e3a89045-3162-4dc2-b34e-8392178ad003",
+      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
       "name": "LLM Generate Report",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1.4,
@@ -96,8 +96,8 @@
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}",
-        "subject": "=Research Report: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}",
+        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
+        "subject": "=Research Report Draft: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
         "emailType": "html",
         "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
         "options": {}
@@ -121,9 +121,9 @@
       "parameters": {
         "resource": "message",
         "operation": "sendAndWait",
-        "sendTo": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}",
-        "subject": "=Review Follow-up: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.text) : '') }}\n</div>",
+        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
+        "subject": "=Review Follow-up: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\n</div>",
         "options": {}
       },
       "id": "c5d6e7f8-9012-3456-789a-bcdef0123456",
@@ -148,7 +148,7 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "caseSensitive": false,
                   "leftValue": "",
                   "typeValidation": "strict"
                 },
@@ -168,13 +168,13 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "caseSensitive": false,
                   "leftValue": "",
                   "typeValidation": "strict"
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.body || $json.text || $json.message || $json.response || '' }}",
+                    "leftValue": "={{ ($json.body || $json.text || $json.message || $json.response || '').trim() }}",
                     "rightValue": "FEEDBACK:",
                     "operator": {
                       "type": "string",
@@ -186,13 +186,12 @@
               }
             }
           ]
-        },
-        "options": {}
+        }
       },
-      "id": "d6e7f890-1234-5678-9abc-def012345678",
+      "id": "d0e1f2a3-b4c5-6789-0123-abcdef012345",
       "name": "Review Decision Switch",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.2,
+      "typeVersion": 3,
       "position": [
         1520,
         340
@@ -208,12 +207,16 @@
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.HTML2PDF_API_KEY || '' }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"html\": \"{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.text) : '') }}\",\n  \"apiKey\": \"{{ $env.HTML2PDF_API_KEY || 'YOUR_HTML2PDF_API_KEY' }}\"\n}",
+        "jsonBody": "={\n  \"html\": \"{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\"\n}",
         "options": {
           "response": {
             "response": {
@@ -223,7 +226,7 @@
           }
         }
       },
-      "id": "d2345678-9abc-def0-1234-56789abcdef0",
+      "id": "a9b8c7d6-e5f4-3210-fedc-ba9876543210",
       "name": "Convert HTML to PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -235,7 +238,7 @@
     {
       "parameters": {
         "operation": "upload",
-        "name": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : 'research-report' }}.pdf",
+        "name": "={{ ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || 'research-report') }}.pdf",
         "binaryData": true,
         "binaryPropertyName": "data",
         "options": {}
@@ -271,11 +274,13 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "timestamp": "={{ new Date().toISOString() }}",
-            "topic": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}",
-            "description": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description) : '' }}",
-            "reviewer_email": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}",
-            "drive_link": "={{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '' }}"
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Topic": "={{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
+            "Subtopics": "={{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}",
+            "Description": "={{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}",
+            "Reviewer email": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
+            "Drive link": "={{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '' }}",
+            "Status": "Approved"
           }
         },
         "options": {}
@@ -299,10 +304,10 @@
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}",
-        "subject": "=Completed Research Report: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}",
+        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
+        "subject": "=Completed Research Report: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
         "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">\n    <h2 style=\"margin: 0 0 8px 0; color: #065f46;\">Research Report Approved & Finalized</h2>\n    <p style=\"margin: 0; color: #047857;\">The research report has been approved, compiled to PDF, and safely archived.</p>\n  </div>\n  \n  <h3>Summary</h3>\n  <ul>\n    <li><strong>Topic:</strong> {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}</li>\n    <li><strong>Description:</strong> {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description) : '' }}</li>\n    <li><strong>Reviewer Email:</strong> {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}</li>\n    <li><strong>Timestamp:</strong> {{ new Date().toISOString() }}</li>\n    <li><strong>Google Drive PDF Link:</strong> <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\">Access PDF Report</a></li>\n  </ul>\n  \n  <p style=\"margin-top: 24px;\">\n    <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\" style=\"display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500;\">\n      View Final PDF on Google Drive &rarr;\n    </a>\n  </p>\n</div>",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">\n    <h2 style=\"margin: 0 0 8px 0; color: #065f46;\">Research Report Approved & Finalized</h2>\n    <p style=\"margin: 0; color: #047857;\">The research report has been approved, compiled to PDF, and safely archived.</p>\n  </div>\n  \n  <h3>Summary</h3>\n  <ul>\n    <li><strong>Topic:</strong> {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}</li>\n    <li><strong>Subtopics:</strong> {{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}</li>\n    <li><strong>Description:</strong> {{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}</li>\n    <li><strong>Reviewer Email:</strong> {{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}</li>\n    <li><strong>Timestamp:</strong> {{ new Date().toISOString() }}</li>\n    <li><strong>Status:</strong> Approved</li>\n    <li><strong>Google Drive PDF Link:</strong> <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\">Access PDF Report</a></li>\n  </ul>\n  \n  <p style=\"margin-top: 24px;\">\n    <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\" style=\"display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500;\">\n      View Final PDF on Google Drive &rarr;\n    </a>\n  </p>\n</div>",
         "options": {}
       },
       "id": "e3456789-abcd-ef01-2345-6789abcdef01",
@@ -350,7 +355,7 @@
             },
             {
               "role": "user",
-              "content": "=Original Topic: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}\n\nCurrent HTML Report:\n{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.text) : '') }}\n\nReviewer Feedback Comments:\n{{ $json.feedback_text || $json.feedbackComments || $json.comments || ($json.body || $json.text || $json.message || '').replace(/^FEEDBACK:\\s*/i, '').trim() }}"
+              "content": "=Original Topic: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}\n\nCurrent HTML Report:\n{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\n\nReviewer Feedback Comments:\n{{ $json.feedback_text || $json.feedbackComments || $json.comments || ($json.body || $json.text || $json.message || '').replace(/^FEEDBACK:\\s*/i, '').trim() }}"
             }
           ]
         },
@@ -377,10 +382,10 @@
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email) : '' }}",
-        "subject": "=Revised Research Report: {{ $('Webhook (Form Input)').isExecuted ? ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic) : '' }}",
+        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
+        "subject": "=Revised Research Report: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
         "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.message?.content || $json.reportHtml || $json.text }}\n</div>",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
         "options": {}
       },
       "id": "a9012345-6789-abcdef-0123-456789abcdef",
@@ -545,10 +550,9 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "f5e6789a-0123-8bc3-4567-89abcdef0123",
+  "versionId": "4892c53a-c8e4-4d1a-965a-0bf643dc5277",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "n8n-research-pipeline-workspace"
-  },
-  "tags": []
+    "instanceId": "nardisho-app-n8n-cloud"
+  }
 }

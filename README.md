@@ -43,7 +43,7 @@ flowchart TD
     %% Approval Branch
     F -->|Branch 0: Contains 'APPROVED'| G["1) Convert HTML to PDF<br/>(HTTP Request Node)"]
     G --> H["2) Upload PDF to Google Drive<br/>(Named after topic)"]
-    H --> I["3) Log to Google Sheets<br/>(Timestamp, Topic, Desc, Email, Drive Link)"]
+    H --> I["3) Log to Google Sheets<br/>(Timestamp, Topic, Subtopics, Desc, Email, Drive Link, Status)"]
     I --> J["4) Send Final Summary Email<br/>(Summary + Drive PDF Link)"]
     
     %% Feedback Branch
