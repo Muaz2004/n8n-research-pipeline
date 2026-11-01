@@ -86,7 +86,7 @@
         "url": "https://api.tavily.com/search",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"api_key\": \"{{ $credentials.tavilyApi.apiKey }}\",\n  \"query\": \"Research the topic: {{ $json.topic }}. Subtopics to consider: {{ $json.subtopics || 'None provided' }}. Context: {{ $json.description || 'None provided' }}. Provide structured information, key points, current useful references, and practical conclusions.\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
+        "jsonBody": "={\n  \"query\": \"Research the topic: {{ $json.topic }}. Subtopics to consider: {{ $json.subtopics || 'None provided' }}. Context: {{ $json.description || 'None provided' }}. Provide structured information, key points, current useful references, and practical conclusions.\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -99,7 +99,7 @@
       "name": "Search Topic with Tavily",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "tavily_api_key_001",
+          "id": "21DkWLgJ6u58XxNo",
           "name": "Tavily API"
         }
       }
@@ -151,14 +151,14 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "value": "1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc",
           "mode": "list",
           "cachedResultName": "ResearchRequests",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit"
         },
         "sheetName": {
           "__rl": true,
-          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "value": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit#gid=0",
           "mode": "url"
         },
         "columns": {
@@ -359,14 +359,14 @@
       "parameters": {
         "documentId": {
           "__rl": true,
-          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "value": "1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc",
           "mode": "list",
           "cachedResultName": "ResearchRequests",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit"
         },
         "sheetName": {
           "__rl": true,
-          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "value": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit#gid=0",
           "mode": "url"
         },
         "filtersUI": {
@@ -475,15 +475,6 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.pdfshift.io/v3/convert/pdf",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-API-Key",
-              "value": "={{ $credentials.pdfShiftApi.apiKey }}"
-            }
-          ]
-        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -511,7 +502,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pdfshift_api_key_001",
+          "id": "4vMPI1bWAqXjvL5N",
           "name": "PDFShift API"
         }
       }
@@ -552,14 +543,14 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "value": "1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc",
           "mode": "list",
           "cachedResultName": "ResearchRequests",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit"
         },
         "sheetName": {
           "__rl": true,
-          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "value": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit#gid=0",
           "mode": "url"
         },
         "columns": {
@@ -669,14 +660,14 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "value": "1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc",
           "mode": "list",
           "cachedResultName": "ResearchRequests",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit"
         },
         "sheetName": {
           "__rl": true,
-          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "value": "https://docs.google.com/spreadsheets/d/1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc/edit#gid=0",
           "mode": "url"
         },
         "columns": {

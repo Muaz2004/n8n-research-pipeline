@@ -60,10 +60,13 @@ All nodes requiring credentials have their properties mapped to the target IDs:
 
 | Service | Credential Name / Type | Injected ID | Nodes Configured |
 | :--- | :--- | :--- | :--- |
-| **OpenAI** | `OpenAI API` / `openAiApi` | `4` | `LLM Generate Report`, `Revise Report with Feedback` |
-| **Gmail** | `Gmail OAuth2 API` / `gmailOAuth2` | `uypNuUhTfvPwNQY1` | `Send Gmail to Reviewer`, `Send and wait for response`, `Send Revised Report to Reviewer`, `Send Final Summary Email` |
-| **Google Drive** | `Google Drive OAuth2 API` / `googleDriveOAuth2Api` | `vCOWlNFHjPCxhkkp` | `Upload PDF to Google Drive` |
-| **Google Sheets** | `Google Sheets OAuth2 API` / `googleSheetsOAuth2Api` | `ekUCZ7Zpwvaz2QzN` | `Log to Google Sheets` |
+| **OpenAI** | `OpenAI API` / `openAiApi` | `4` | `OpenAI Chat Model` (GPT-4o) |
+| **Gmail** | `Gmail OAuth2 API` / `gmailOAuth2` | `uypNuUhTfvPwNQY1` | `Send Draft for Review`, `Reviewer Reply Trigger`, `Send Done Email`, `Resend Revised Draft` |
+| **Google Drive** | `Google Drive OAuth2 API` / `googleDriveOAuth2Api` | `vCOWlNFHjPCxhkkp` | `Upload PDF to Drive` |
+| **Google Sheets** | `Google Sheets OAuth2 API` / `googleSheetsOAuth2Api` | `ekUCZ7Zpwvaz2QzN` | `Create Request State Row`, `Lookup Request Row`, `Mark Request Completed`, `Save Revised Report` |
+| **PDFShift** | `Header Auth` / `httpHeaderAuth` | `4vMPI1bWAqXjvL5N` | `Convert HTML to PDF` |
+| **Tavily** | `Header Auth` / `httpHeaderAuth` | `21DkWLgJ6u58XxNo` | `Search Topic with Tavily` |
+| **Spreadsheet ID**| Google Sheets Document ID | `1_NXZZylBDm6DqV5zjv8iUayyYEIrktSqx8gOdYWtUUc` | All 4 Google Sheets Nodes |
 
 ---
 
