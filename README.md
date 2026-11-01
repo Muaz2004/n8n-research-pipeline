@@ -1,6 +1,6 @@
 # n8n Research Pipeline
 
-A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow and the Tavily Search API.
+A minimal, focused research ingestion pipeline workspace connecting a lightweight dark-themed web form to an n8n workflow, the Tavily Search API, an LLM report generator, and automated email review dispatch via Gmail.
 
 ## Workspace Structure
 
@@ -9,7 +9,7 @@ A minimal, focused research ingestion pipeline workspace connecting a lightweigh
 ├── index.html        # Minimalist single-column input form (no card containers)
 ├── style.css         # Dark slate theme styling with emerald green accent
 ├── app.js            # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json     # Initial n8n workflow definition (Webhook -> Tavily HTTP Request)
+├── workflow.json     # n8n workflow (Webhook -> Tavily -> LLM -> Gmail)
 └── README.md         # Setup and usage documentation
 ```
 
@@ -30,15 +30,9 @@ A minimal, focused research ingestion pipeline workspace connecting a lightweigh
 ### Quick Preview
 To serve the form locally:
 ```bash
-cd /home/muaz/projects/n8n-research-pipeline
-python3 -m http.server 3000
+python3 -m http.server 3000 --directory /home/muaz/projects/n8n-research-pipeline
 ```
 Then open `http://localhost:3000` in your browser.
-
-To target a specific n8n webhook URL on launch:
-```
-http://localhost:3000/?webhook=http://localhost:5678/webhook/research-request
-```
 
 ---
 
@@ -48,24 +42,31 @@ http://localhost:3000/?webhook=http://localhost:5678/webhook/research-request
 1. **Webhook Trigger Node (`n8n-nodes-base.webhook`)**:
    - Method: `POST`
    - Path: `research-request`
-   - Test Webhook URL: `http://<n8n-host>:5678/webhook-test/research-request`
-   - Production Webhook URL: `http://<n8n-host>:5678/webhook/research-request`
    - Receives JSON payload with `topic`, `subtopics`, `description`, `reviewer_email`.
 
 2. **HTTP Request Node (`n8n-nodes-base.httpRequest`)**:
    - Endpoint: `https://api.tavily.com/search`
    - Method: `POST`
-   - Headers: `Content-Type: application/json`
-   - Body parameters:
-     - `query`: `={{ $json.body?.topic || $json.topic }}`
-     - `api_key`: `={{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}`
-     - `search_depth`: `advanced`
-     - `include_answer`: `true`
-     - `max_results`: `5`
+   - Query Expression: `={{ $json.body?.topic || $json.topic }}`
+   - Options: `advanced` search depth with `include_answer: true`.
+
+3. **LLM Node (`n8n-nodes-base.openAi`)**:
+   - Ingests both the Tavily search results and original request parameters (`topic`, `subtopics`, `description`).
+   - Generates an HTML-only research report utilizing semantic markup: `<h1>`, `<h2>`, `<p>`, and unordered lists (`<ul>`, `<li>`).
+   - Produces raw semantic HTML ready for email rendering (no markdown code blocks).
+
+4. **Gmail Node (`n8n-nodes-base.gmail`)**:
+   - Sends the HTML report directly to `reviewer_email`.
+   - Includes review instructions at the top:
+     > *Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.*
+   - Embeds `reportHtml` within the email body.
 
 ### Importing into n8n
 1. Open your n8n web interface (e.g. `http://localhost:5678`).
-2. Go to **Workflows** &rarr; click the **...** menu (top right) &rarr; **Import from File**.
+2. Go to **Workflows** &rarr; click **...** (top right) &rarr; **Import from File**.
 3. Select [workflow.json](file:///home/muaz/projects/n8n-research-pipeline/workflow.json).
-4. Set your Tavily API Key either as an environment variable (`TAVILY_API_KEY`) or replace `YOUR_TAVILY_API_KEY` in the HTTP Request node parameters.
-5. Activate the workflow or click **Test workflow**.
+4. Configure credentials:
+   - Tavily API key: in environment variable `TAVILY_API_KEY` or in the HTTP Request node.
+   - OpenAI account credentials for the LLM node.
+   - Gmail OAuth2 credentials for the Gmail node.
+5. Activate the workflow.

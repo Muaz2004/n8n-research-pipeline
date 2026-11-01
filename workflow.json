@@ -1,5 +1,5 @@
 {
-  "name": "Research Pipeline - Trigger & Tavily Search",
+  "name": "Research Pipeline - Trigger, Tavily Search, LLM Report & Email Review",
   "nodes": [
     {
       "parameters": {
@@ -51,6 +51,59 @@
         520,
         340
       ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert research analyst. You will be provided with research request parameters (topic, subtopics, description) and Tavily web search results. Generate an HTML-only research report utilizing semantic tags like <h1>, <h2>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the clean, semantic HTML markup for the report."
+            },
+            {
+              "role": "user",
+              "content": "=Original Form Request:\n- Topic: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}\n- Subtopics: {{ $('Webhook Trigger').item.json.body?.subtopics || $('Webhook Trigger').item.json.subtopics }}\n- Description: {{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}\n- Reviewer Email: {{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}\n\nTavily JSON Response:\n{{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "e3a89045-3162-4dc2-b34e-8392178ad003",
+      "name": "LLM Generate Report",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        780,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
+        "options": {}
+      },
+      "id": "8b9a1234-5678-49ab-cdef-0123456789ab",
+      "name": "Send Gmail to Reviewer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1040,
+        340
+      ]
     }
   ],
   "pinData": {},
@@ -65,13 +118,35 @@
           }
         ]
       ]
+    },
+    "Query Tavily API": {
+      "main": [
+        [
+          {
+            "node": "LLM Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail to Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "f7d750fa-b1e2-45e3-9794-52d3a3399432",
+  "versionId": "b1a2345c-6789-4def-0123-456789abcdef",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "n8n-research-pipeline-workspace"
