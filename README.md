@@ -9,8 +9,8 @@ A complete, production-ready research ingestion, iterative review, and automated
 ├── index.html        # Minimalist single-column input form (no card containers)
 ├── style.css         # Dark slate theme styling with emerald green accent
 ├── app.js            # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json     # Complete end-to-end n8n workflow JSON with Approval & Feedback branches
-└── README.md         # Full pipeline architecture and documentation
+├── workflow.json     # Complete end-to-end n8n workflow JSON with mapped OAuth2 credentials
+└── README.md         # Full pipeline architecture, credentials setup, and documentation
 ```
 
 ---
@@ -47,10 +47,10 @@ flowchart TD
     E --> F{"Review Decision Switch"}
     
     %% Approval Branch
-    F -->|Branch 0: Contains 'APPROVED'| G["Convert HTML to PDF<br/>(HTTP Request Node)"]
-    G --> H["Upload PDF to Google Drive<br/>(Named after topic)"]
-    H --> I["Log to Google Sheets<br/>(Timestamp, Topic, Desc, Email, Link)"]
-    I --> J["Send Final Summary Email<br/>(Summary + Drive PDF Link)"]
+    F -->|Branch 0: Contains 'APPROVED'| G["1) Convert HTML to PDF<br/>(HTTP Request Node)"]
+    G --> H["2) Upload PDF to Google Drive<br/>(Named after topic)"]
+    H --> I["3) Log to Google Sheets<br/>(Timestamp, Topic, Desc, Email, Drive Link)"]
+    I --> J["4) Send Final Summary Email<br/>(Summary + Drive PDF Link)"]
     
     %% Feedback Branch
     F -->|Branch 1: Starts with 'FEEDBACK:'| K["Extract Feedback Comments"]
@@ -61,28 +61,74 @@ flowchart TD
 
 ---
 
-### Pipeline Nodes Breakdown
+## 3. Google OAuth2 Credentials Setup Guide
 
-#### Core Trigger & Search
-1. **Webhook Trigger Node (`n8n-nodes-base.webhook`)**: Receives `topic`, `subtopics`, `description`, and `reviewer_email`.
-2. **Query Tavily API (`n8n-nodes-base.httpRequest`)**: Executes an advanced web search against `https://api.tavily.com/search`.
-3. **LLM Generate Report (`n8n-nodes-base.openAi`)**: Ingests form inputs and Tavily findings to synthesize a clean, semantic HTML report (`<h1>`, `<h2>`, `<p>`, `<ul>`/`<li>`).
-4. **Send Gmail to Reviewer (`n8n-nodes-base.gmail`)**: Dispatches the initial report to `reviewer_email` with instructions to reply with `'APPROVED'` or `'FEEDBACK: [comments]'`.
-5. **Send and wait for response (`n8n-nodes-base.gmail`)**: Pauses workflow execution using human-in-the-loop operation (`sendAndWait`).
-6. **Review Decision Switch (`n8n-nodes-base.switch`)**: Evaluates incoming reply text.
+To resolve execution errors on **Gmail**, **Google Drive**, and **Google Sheets** nodes, configure an OAuth2 App in Google Cloud Console.
 
-#### Approval Branch (`APPROVED`)
-7. **Convert HTML to PDF (`n8n-nodes-base.httpRequest`)**: Calls an HTML-to-PDF generation API with the latest HTML report, receiving the compiled PDF binary.
-8. **Upload PDF to Google Drive (`n8n-nodes-base.googleDrive`)**: Uploads the binary to Google Drive, named `{{ topic }}.pdf`.
-9. **Log to Google Sheets (`n8n-nodes-base.googleSheets`)**: Appends an audit row logging:
-   - `timestamp`: ISO timestamp
-   - `topic`: Research topic
-   - `description`: Context/parameters
-   - `reviewer_email`: Reviewer's address
-   - `drive_link`: Direct Google Drive link (`webViewLink`)
-10. **Send Final Summary Email (`n8n-nodes-base.gmail`)**: Sends a completion notification to the reviewer with a task summary and the direct Google Drive link to the final PDF report.
+### Part A: Google Cloud Console Configuration
 
-#### Feedback Branch (`FEEDBACK:`)
-11. **Extract Feedback Comments (`n8n-nodes-base.code`)**: Strips the `FEEDBACK:` prefix and extracts reviewer instructions.
-12. **Revise Report with Feedback (`n8n-nodes-base.openAi`)**: Refines the existing HTML report to address reviewer feedback.
-13. **Send Revised Report to Reviewer (`n8n-nodes-base.gmail`)**: Dispatches the revised draft and loops back to **Send and wait for response**.
+1. **Create or Select a Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/).
+   - Click the project dropdown (top left) and click **New Project** (e.g. `n8n-research-pipeline`).
+
+2. **Enable Required Google APIs**:
+   - Navigate to **APIs & Services** &rarr; **Library**.
+   - Search for and enable each of the following:
+     - **Gmail API**
+     - **Google Drive API**
+     - **Google Sheets API**
+
+3. **Configure the OAuth Consent Screen**:
+   - Navigate to **APIs & Services** &rarr; **OAuth consent screen**.
+   - Choose **External** (or **Internal** if using Google Workspace) and click **Create**.
+   - Fill in:
+     - **App name**: `n8n Research Pipeline`
+     - **User support email**: Your email
+     - **Developer contact information**: Your email
+   - Click **Save and Continue**.
+   - On the **Scopes** page, click **Save and Continue**.
+   - On the **Test Users** page, click **Add Users** and enter your Google account email. Click **Save and Continue**.
+
+4. **Create OAuth 2.0 Client ID & Secret**:
+   - Navigate to **APIs & Services** &rarr; **Credentials**.
+   - Click **+ Create Credentials** &rarr; select **OAuth client ID**.
+   - Set **Application type**: **Web application**.
+   - Set **Name**: `n8n Client`.
+   - Under **Authorized redirect URIs**, click **+ Add URI** and paste:
+     ```
+     http://localhost:5678/rest/oauth2-credential/callback
+     ```
+     *(If using a hosted domain or tunnel, replace `http://localhost:5678` with your base n8n URL, e.g. `https://n8n.yourdomain.com/rest/oauth2-credential/callback`)*.
+   - Click **Create**. Copy your **Client ID** and **Client Secret**.
+
+---
+
+### Part B: Connect Credentials inside n8n
+
+You can reuse the **same Client ID and Client Secret** across all three Google credential types:
+
+1. Open your n8n interface (`http://localhost:5678`).
+2. Go to **Credentials** (left menu) &rarr; click **Add Credential** (top right):
+
+#### 1. Gmail (`Gmail OAuth2 API`)
+- Search for **Gmail OAuth2 API**.
+- Name it: `Gmail OAuth2 API`.
+- Paste your **Client ID** and **Client Secret**.
+- Click **Sign in with Google**. In the popup, choose your account, click **Advanced** &rarr; **Go to n8n (unsafe)**, and grant permissions.
+- Click **Save**.
+
+#### 2. Google Drive (`Google Drive OAuth2 API`)
+- Click **Add Credential** &rarr; search for **Google Drive OAuth2 API**.
+- Name it: `Google Drive OAuth2 API`.
+- Paste the same **Client ID** and **Client Secret**.
+- Click **Sign in with Google** and approve permissions.
+- Click **Save**.
+
+#### 3. Google Sheets (`Google Sheets OAuth2 API`)
+- Click **Add Credential** &rarr; search for **Google Sheets OAuth2 API**.
+- Name it: `Google Sheets OAuth2 API`.
+- Paste the same **Client ID** and **Client Secret**.
+- Click **Sign in with Google** and approve permissions.
+- Click **Save**.
+
+Once saved, import or refresh [workflow.json](file:///home/muaz/projects/n8n-research-pipeline/workflow.json) and all Google nodes will execute with valid authentication.

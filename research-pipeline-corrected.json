@@ -1,0 +1,554 @@
+{
+  "name": "Research Pipeline - Complete End-to-End Workflow with Review & Archival",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-request",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "1d8b671a-2895-46f9-b883-8a0a9829f001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        340
+      ],
+      "webhookId": "research-request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"api_key\": \"{{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}\",\n  \"query\": \"{{ $json.body?.topic || $json.topic }}\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "7f09312b-bc66-419b-a016-1f7c7569e002",
+      "name": "Query Tavily API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert research analyst. You will be provided with research request parameters (topic, subtopics, description) and Tavily web search results. Generate an HTML-only research report utilizing semantic tags like <h1>, <h2>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the clean, semantic HTML markup for the report."
+            },
+            {
+              "role": "user",
+              "content": "=Original Form Request:\n- Topic: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}\n- Subtopics: {{ $('Webhook Trigger').item.json.body?.subtopics || $('Webhook Trigger').item.json.subtopics }}\n- Description: {{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}\n- Reviewer Email: {{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}\n\nTavily JSON Response:\n{{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "e3a89045-3162-4dc2-b34e-8392178ad003",
+      "name": "LLM Generate Report",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        780,
+        340
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "4",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
+        "options": {}
+      },
+      "id": "8b9a1234-5678-49ab-cdef-0123456789ab",
+      "name": "Send Gmail to Reviewer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1040,
+        340
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Review Follow-up: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text || '' }}\n</div>",
+        "options": {}
+      },
+      "id": "c5d6e7f8-9012-3456-789a-bcdef0123456",
+      "name": "Send and wait for response",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1280,
+        340
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body || $json.text || $json.message || $json.response || '' }}",
+                    "rightValue": "APPROVED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body || $json.text || $json.message || $json.response || '' }}",
+                    "rightValue": "FEEDBACK:",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d6e7f890-1234-5678-9abc-def012345678",
+      "name": "Review Decision Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1520,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.html2pdf.app/v1/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": \"{{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text }}\",\n  \"apiKey\": \"{{ $env.HTML2PDF_API_KEY || 'YOUR_HTML2PDF_API_KEY' }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "d2345678-9abc-def0-1234-56789abcdef0",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}.pdf",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "b0123456-789a-bcde-f012-3456789abcde",
+      "name": "Upload PDF to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2020,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "vCOWlNFHjPCxhkkp",
+          "name": "Google Drive OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "RESEARCH_PIPELINE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "topic": "={{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+            "description": "={{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}",
+            "reviewer_email": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+            "drive_link": "={{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c1234567-89ab-cdef-0123-456789abcdef",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2260,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ekUCZ7Zpwvaz2QzN",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Completed Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">\n    <h2 style=\"margin: 0 0 8px 0; color: #065f46;\">Research Report Approved & Finalized</h2>\n    <p style=\"margin: 0; color: #047857;\">The research report has been approved, compiled to PDF, and safely archived.</p>\n  </div>\n  \n  <h3>Summary</h3>\n  <ul>\n    <li><strong>Topic:</strong> {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}</li>\n    <li><strong>Description:</strong> {{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}</li>\n    <li><strong>Reviewer Email:</strong> {{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}</li>\n    <li><strong>Timestamp:</strong> {{ new Date().toISOString() }}</li>\n    <li><strong>Google Drive PDF Link:</strong> <a href=\"{{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}\">Access PDF Report</a></li>\n  </ul>\n  \n  <p style=\"margin-top: 24px;\">\n    <a href=\"{{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}\" style=\"display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500;\">\n      View Final PDF on Google Drive &rarr;\n    </a>\n  </p>\n</div>",
+        "options": {}
+      },
+      "id": "e3456789-abcd-ef01-2345-6789abcdef01",
+      "name": "Send Final Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2500,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.item.json;\nconst text = inputData.body || inputData.text || inputData.message || inputData.response || '';\nconst feedbackComments = text.replace(/^FEEDBACK:\\s*/i, '').trim();\n\nreturn {\n  json: {\n    ...inputData,\n    feedback_text: feedbackComments,\n    feedbackComments: feedbackComments,\n    comments: feedbackComments\n  }\n};"
+      },
+      "id": "e7f89012-3456-789a-bcde-f0123456789a",
+      "name": "Extract Feedback Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert research analyst. You will receive an original research topic, the current HTML research report, and the reviewer's feedback comments. Revise and enhance the HTML research report to address and incorporate the feedback. Utilize semantic tags like <h1>, <h2>, <p>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the revised, clean semantic HTML markup."
+            },
+            {
+              "role": "user",
+              "content": "=Original Topic: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}\n\nCurrent HTML Report:\n{{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text }}\n\nReviewer Feedback Comments:\n{{ $json.feedback_text || $json.feedbackComments || $json.comments || ($json.body || $json.text || $json.message || '').replace(/^FEEDBACK:\\s*/i, '').trim() }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "f8901234-5678-9abc-def0-123456789abc",
+      "name": "Revise Report with Feedback",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        2020,
+        440
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "4",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Revised Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.message?.content || $json.reportHtml || $json.text }}\n</div>",
+        "options": {}
+      },
+      "id": "a9012345-6789-abcdef-0123-456789abcdef",
+      "name": "Send Revised Report to Reviewer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2260,
+        440
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query Tavily API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Tavily API": {
+      "main": [
+        [
+          {
+            "node": "LLM Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail to Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Gmail to Reviewer": {
+      "main": [
+        [
+          {
+            "node": "Send and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send and wait for response": {
+      "main": [
+        [
+          {
+            "node": "Review Decision Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Decision Switch": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Feedback Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML to PDF": {
+      "main": [
+        [
+          {
+            "node": "Upload PDF to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload PDF to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send Final Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Feedback Comments": {
+      "main": [
+        [
+          {
+            "node": "Revise Report with Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revise Report with Feedback": {
+      "main": [
+        [
+          {
+            "node": "Send Revised Report to Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Revised Report to Reviewer": {
+      "main": [
+        [
+          {
+            "node": "Send and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f5e6789a-0123-8bc3-4567-89abcdef0123",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-research-pipeline-workspace"
+  },
+  "tags": []
+}

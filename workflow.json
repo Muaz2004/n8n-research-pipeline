@@ -84,7 +84,13 @@
       "position": [
         780,
         340
-      ]
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "4",
+          "name": "OpenAI API"
+        }
+      }
     },
     {
       "parameters": {
@@ -103,7 +109,13 @@
       "position": [
         1040,
         340
-      ]
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
     },
     {
       "parameters": {
@@ -121,7 +133,13 @@
       "position": [
         1280,
         340
-      ]
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
     },
     {
       "parameters": {
@@ -229,7 +247,13 @@
       "position": [
         2020,
         200
-      ]
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "vCOWlNFHjPCxhkkp",
+          "name": "Google Drive OAuth2 API"
+        }
+      }
     },
     {
       "parameters": {
@@ -263,7 +287,13 @@
       "position": [
         2260,
         200
-      ]
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ekUCZ7Zpwvaz2QzN",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
     },
     {
       "parameters": {
@@ -282,7 +312,13 @@
       "position": [
         2500,
         200
-      ]
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
     },
     {
       "parameters": {
@@ -329,7 +365,13 @@
       "position": [
         2020,
         440
-      ]
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "4",
+          "name": "OpenAI API"
+        }
+      }
     },
     {
       "parameters": {
@@ -348,7 +390,13 @@
       "position": [
         2260,
         440
-      ]
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Gmail OAuth2 API"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -497,7 +545,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "e4d5678f-9012-7ab2-3456-789abcdef012",
+  "versionId": "f5e6789a-0123-8bc3-4567-89abcdef0123",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "n8n-research-pipeline-workspace"
