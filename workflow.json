@@ -1,5 +1,5 @@
 {
-  "name": "Research Pipeline - Trigger, Tavily Search, LLM Report, Review & Feedback Loop",
+  "name": "Research Pipeline - Complete End-to-End Workflow with Review & Archival",
   "nodes": [
     {
       "parameters": {
@@ -182,6 +182,110 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://api.html2pdf.app/v1/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": \"{{ $('Revise Report with Feedback').item?.json?.message?.content || $('LLM Generate Report').item.json.message?.content || $('LLM Generate Report').item.json.reportHtml || $('LLM Generate Report').item.json.text }}\",\n  \"apiKey\": \"{{ $env.HTML2PDF_API_KEY || 'YOUR_HTML2PDF_API_KEY' }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "d2345678-9abc-def0-1234-56789abcdef0",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}.pdf",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "b0123456-789a-bcde-f012-3456789abcde",
+      "name": "Upload PDF to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2020,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "RESEARCH_PIPELINE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "topic": "={{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+            "description": "={{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}",
+            "reviewer_email": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+            "drive_link": "={{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c1234567-89ab-cdef-0123-456789abcdef",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2260,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
+        "subject": "=Completed Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">\n    <h2 style=\"margin: 0 0 8px 0; color: #065f46;\">Research Report Approved & Finalized</h2>\n    <p style=\"margin: 0; color: #047857;\">The research report has been approved, compiled to PDF, and safely archived.</p>\n  </div>\n  \n  <h3>Summary</h3>\n  <ul>\n    <li><strong>Topic:</strong> {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}</li>\n    <li><strong>Description:</strong> {{ $('Webhook Trigger').item.json.body?.description || $('Webhook Trigger').item.json.description }}</li>\n    <li><strong>Reviewer Email:</strong> {{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}</li>\n    <li><strong>Timestamp:</strong> {{ new Date().toISOString() }}</li>\n    <li><strong>Google Drive PDF Link:</strong> <a href=\"{{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}\">Access PDF Report</a></li>\n  </ul>\n  \n  <p style=\"margin-top: 24px;\">\n    <a href=\"{{ $('Upload PDF to Google Drive').item.json.webViewLink || $('Upload PDF to Google Drive').item.json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').item.json.id + '/view' }}\" style=\"display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500;\">\n      View Final PDF on Google Drive &rarr;\n    </a>\n  </p>\n</div>",
+        "options": {}
+      },
+      "id": "e3456789-abcd-ef01-2345-6789abcdef01",
+      "name": "Send Final Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2500,
+        200
+      ]
+    },
+    {
+      "parameters": {
         "jsCode": "const inputData = $input.item.json;\nconst text = inputData.body || inputData.text || inputData.message || inputData.response || '';\nconst feedbackComments = text.replace(/^FEEDBACK:\\s*/i, '').trim();\n\nreturn {\n  json: {\n    ...inputData,\n    feedback_text: feedbackComments,\n    feedbackComments: feedbackComments,\n    comments: feedbackComments\n  }\n};"
       },
       "id": "e7f89012-3456-789a-bcde-f0123456789a",
@@ -306,10 +410,49 @@
     },
     "Review Decision Switch": {
       "main": [
-        [],
+        [
+          {
+            "node": "Convert HTML to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Extract Feedback Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML to PDF": {
+      "main": [
+        [
+          {
+            "node": "Upload PDF to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload PDF to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send Final Summary Email",
             "type": "main",
             "index": 0
           }
@@ -354,7 +497,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "d3c4567e-8901-6fa1-2345-6789abcdef01",
+  "versionId": "e4d5678f-9012-7ab2-3456-789abcdef012",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "n8n-research-pipeline-workspace"
