@@ -1,260 +1,148 @@
 {
-  "name": "Research Pipeline - Complete End-to-End Workflow with Review & Archival",
+  "name": "AI Research Pipeline with Tavily and Human Approval",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "research-request",
-        "responseMode": "onReceived",
-        "responseData": "allEntries",
+        "formTitle": "AI Research Request",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "topic",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "subtopics"
+            },
+            {
+              "fieldLabel": "description",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "reviewer_email",
+              "fieldType": "email",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        300,
+        280
+      ],
+      "id": "2c4beda6-a773-4443-a355-deffbff50e19",
+      "name": "Research Request Form",
+      "webhookId": "8dc62d00-8529-44e8-9364-e9a16abd27f4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9f13d185-1ab7-491e-8e92-a5d8aa30f661",
+              "name": "requestId",
+              "value": "={{ 'REQ-' + Date.now() }}",
+              "type": "string"
+            },
+            {
+              "id": "d056ca5f-ba35-4cd4-afa7-a998c608f647",
+              "name": "status",
+              "value": "Pending Review",
+              "type": "string"
+            },
+            {
+              "id": "e8a57207-e57d-4dd6-afe2-e5aaa2e5ac63",
+              "name": "revisionCount",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "12f6b486-1097-485a-a35d-7ebb98dc4257",
+              "name": "createdAt",
+              "value": "={{ $now }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
         "options": {}
       },
-      "id": "1d8b671a-2895-46f9-b883-8a0a9829f001",
-      "name": "Webhook (Form Input)",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
-        260,
-        340
+        540,
+        280
       ],
-      "webhookId": "research-request"
+      "id": "6ed8a221-d404-4b78-ba31-0c20501f8230",
+      "name": "Prepare Request Metadata"
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://api.tavily.com/search",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"api_key\": \"{{ $env.TAVILY_API_KEY || 'YOUR_TAVILY_API_KEY' }}\",\n  \"query\": \"{{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || $json.body?.topic || $json.topic || '' }}\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
+        "jsonBody": "={\n  \"api_key\": \"{{ $credentials.tavilyApi.apiKey }}\",\n  \"query\": \"Research the topic: {{ $json.topic }}. Subtopics to consider: {{ $json.subtopics || 'None provided' }}. Context: {{ $json.description || 'None provided' }}. Provide structured information, key points, current useful references, and practical conclusions.\",\n  \"search_depth\": \"advanced\",\n  \"include_answer\": true,\n  \"include_raw_content\": false,\n  \"max_results\": 5\n}",
+        "options": {}
       },
-      "id": "3c4d5e6f-789a-bcde-f012-3456789abcde",
-      "name": "Query Tavily API",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "typeVersion": 4.4,
       "position": [
-        520,
-        340
-      ]
+        780,
+        280
+      ],
+      "id": "206cfa5d-33be-42c4-b1bd-0bb66c614f53",
+      "name": "Search Topic with Tavily",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tavily_api_key_001",
+          "name": "Tavily API"
+        }
+      }
     },
     {
       "parameters": {
-        "resource": "chat",
-        "operation": "complete",
+        "promptType": "define",
+        "text": "=Research Topic:\n{{ $('Prepare Request Metadata').item.json.topic }}\n\nSubtopics:\n{{ $('Prepare Request Metadata').item.json.subtopics || 'None provided' }}\n\nContext:\n{{ $('Prepare Request Metadata').item.json.description || 'None provided' }}\n\nTavily Answer:\n{{ $json.answer || 'No direct answer returned.' }}\n\nTavily Search Results JSON:\n{{ JSON.stringify($json.results || [], null, 2) }}\n\nGenerate a polished research report in valid HTML only.",
+        "options": {
+          "systemMessage": "You are a senior research analyst. Create a professional HTML research report from the supplied topic, context, and Tavily research results.\n\nRules:\n- Return raw valid HTML only.\n- Do not return Markdown.\n- Do not wrap the answer in code fences.\n- Do not include explanations outside the HTML.\n- Use the Tavily results as source material and include useful references with links when URLs are present.\n\nRequired structure:\n<h1>Report title</h1>\n<h2>Introduction</h2>\n<p>...</p>\n<h2>Key Findings</h2>\n<ul><li>...</li></ul>\n<h2>Detailed Analysis</h2>\n<p>...</p>\n<h2>Recommendations or Practical Takeaways</h2>\n<ul><li>...</li></ul>\n<h2>Conclusion</h2>\n<p>...</p>\n<h2>References</h2>\n<ul><li><a href=\"...\">Source title</a></li></ul>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1020,
+        260
+      ],
+      "id": "8551924a-f26e-4e32-a9eb-835c4e0d53a9",
+      "name": "Generate HTML Report",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
         "model": {
           "__rl": true,
           "mode": "list",
-          "value": "gpt-4o-mini"
+          "value": "gpt-4o"
         },
-        "prompt": {
-          "messages": [
-            {
-              "role": "system",
-              "content": "You are an expert research analyst. Your task is to generate a comprehensive, in-depth research report based on the provided search results and user specifications.\n\nSTRICT OUTPUT REQUIREMENT: Output ONLY valid, semantic HTML markup (using tags such as <h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <table>, <blockquote>). Do NOT include Markdown formatting (do not use backticks or ```html). Do NOT include <html>, <head>, or <body> wrapper tags. Return ONLY the inner HTML content formatted cleanly."
-            },
-            {
-              "role": "user",
-              "content": "=Topic: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}\nSubtopics: {{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}\nDescription: {{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}\nReviewer Email: {{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}\n\nTavily Research Findings:\n{{ JSON.stringify($json) }}"
-            }
-          ]
-        },
-        "options": {
-          "temperature": 0.3
-        }
+        "options": {}
       },
-      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
-      "name": "LLM Generate Report",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.4,
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
       "position": [
-        780,
-        340
+        1020,
+        500
       ],
+      "id": "2f01dcbb-4f73-4cef-acf2-c69d64b7f718",
+      "name": "OpenAI Chat Model",
       "credentials": {
         "openAiApi": {
           "id": "4",
-          "name": "OpenAI API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
-        "subject": "=Research Report Draft: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
-        "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
-        "options": {}
-      },
-      "id": "8b9a1234-5678-49ab-cdef-0123456789ab",
-      "name": "Send Gmail to Reviewer",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [
-        1040,
-        340
-      ],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "uypNuUhTfvPwNQY1",
-          "name": "Gmail OAuth2 API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "sendAndWait",
-        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
-        "subject": "=Review Follow-up: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <p><strong>Instructions:</strong> Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  <hr/>\n  {{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\n</div>",
-        "options": {}
-      },
-      "id": "c5d6e7f8-9012-3456-789a-bcdef0123456",
-      "name": "Send and wait for response",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [
-        1280,
-        340
-      ],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "uypNuUhTfvPwNQY1",
-          "name": "Gmail OAuth2 API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": false,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.body || $json.text || $json.message || $json.response || '' }}",
-                    "rightValue": "APPROVED",
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": false,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ ($json.body || $json.text || $json.message || $json.response || '').trim() }}",
-                    "rightValue": "FEEDBACK:",
-                    "operator": {
-                      "type": "string",
-                      "operation": "startsWith"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            }
-          ]
-        }
-      },
-      "id": "d0e1f2a3-b4c5-6789-0123-abcdef012345",
-      "name": "Review Decision Switch",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [
-        1520,
-        340
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.html2pdf.app/v1/generate",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.HTML2PDF_API_KEY || '' }}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"html\": \"{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\"\n}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
-            }
-          }
-        }
-      },
-      "id": "a9b8c7d6-e5f4-3210-fedc-ba9876543210",
-      "name": "Convert HTML to PDF",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1780,
-        200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "upload",
-        "name": "={{ ($('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || 'research-report') }}.pdf",
-        "binaryData": true,
-        "binaryPropertyName": "data",
-        "options": {}
-      },
-      "id": "b0123456-789a-bcde-f012-3456789abcde",
-      "name": "Upload PDF to Google Drive",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        2020,
-        200
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "vCOWlNFHjPCxhkkp",
-          "name": "Google Drive OAuth2 API"
+          "name": "OpenAI account"
         }
       }
     },
@@ -263,205 +151,735 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "RESEARCH_PIPELINE_SHEET_ID",
-          "mode": "id"
+          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "mode": "list",
+          "cachedResultName": "ResearchRequests",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
         },
         "sheetName": {
           "__rl": true,
-          "value": "Sheet1",
-          "mode": "name"
+          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "mode": "url"
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Timestamp": "={{ new Date().toISOString() }}",
-            "Topic": "={{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
-            "Subtopics": "={{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}",
-            "Description": "={{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}",
-            "Reviewer email": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
-            "Drive link": "={{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '' }}",
-            "Status": "Approved"
-          }
+            " RequestID ": "={{ $('Prepare Request Metadata').item.json.requestId }}",
+            " Topic ": "={{ $('Prepare Request Metadata').item.json.topic }}",
+            " Subtopics ": "={{ $('Prepare Request Metadata').item.json.subtopics || '' }}",
+            " Description ": "={{ $('Prepare Request Metadata').item.json.description || '' }}",
+            " ReviewerEmail ": "={{ $('Prepare Request Metadata').item.json.reviewer_email }}",
+            " ReportHtml ": "={{ $json.output }}",
+            " Status ": "={{ $('Prepare Request Metadata').item.json.status }}",
+            " RevisionCount ": "={{ $('Prepare Request Metadata').item.json.revisionCount }}",
+            " DriveLink ": "",
+            " CreatedAt ": "={{ $('Prepare Request Metadata').item.json.createdAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": " RequestID ",
+              "displayName": " RequestID ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Topic ",
+              "displayName": " Topic ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Subtopics ",
+              "displayName": " Subtopics ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Description ",
+              "displayName": " Description ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " ReviewerEmail ",
+              "displayName": " ReviewerEmail ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " ReportHtml ",
+              "displayName": " ReportHtml ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Status ",
+              "displayName": " Status ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " RevisionCount ",
+              "displayName": " RevisionCount ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " DriveLink ",
+              "displayName": " DriveLink ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " CreatedAt ",
+              "displayName": " CreatedAt ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "c1234567-89ab-cdef-0123-456789abcdef",
-      "name": "Log to Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "typeVersion": 4.7,
       "position": [
-        2260,
-        200
+        1360,
+        280
       ],
+      "id": "71e85c5f-ea67-4b2d-b50c-cfe956ae44f0",
+      "name": "Create Request State Row",
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "ekUCZ7Zpwvaz2QzN",
-          "name": "Google Sheets OAuth2 API"
+          "name": "Google Sheets account"
         }
       }
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
-        "subject": "=Completed Research Report: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
-        "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">\n    <h2 style=\"margin: 0 0 8px 0; color: #065f46;\">Research Report Approved & Finalized</h2>\n    <p style=\"margin: 0; color: #047857;\">The research report has been approved, compiled to PDF, and safely archived.</p>\n  </div>\n  \n  <h3>Summary</h3>\n  <ul>\n    <li><strong>Topic:</strong> {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}</li>\n    <li><strong>Subtopics:</strong> {{ $('Webhook (Form Input)').first().json.body?.subtopics || $('Webhook (Form Input)').first().json.subtopics || '' }}</li>\n    <li><strong>Description:</strong> {{ $('Webhook (Form Input)').first().json.body?.description || $('Webhook (Form Input)').first().json.description || '' }}</li>\n    <li><strong>Reviewer Email:</strong> {{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}</li>\n    <li><strong>Timestamp:</strong> {{ new Date().toISOString() }}</li>\n    <li><strong>Status:</strong> Approved</li>\n    <li><strong>Google Drive PDF Link:</strong> <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\">Access PDF Report</a></li>\n  </ul>\n  \n  <p style=\"margin-top: 24px;\">\n    <a href=\"{{ $('Upload PDF to Google Drive').isExecuted ? ($('Upload PDF to Google Drive').first().json.webViewLink || $('Upload PDF to Google Drive').first().json.webContentLink || 'https://drive.google.com/file/d/' + $('Upload PDF to Google Drive').first().json.id + '/view') : '#' }}\" style=\"display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500;\">\n      View Final PDF on Google Drive &rarr;\n    </a>\n  </p>\n</div>",
-        "options": {}
+        "sendTo": "={{ $json[' ReviewerEmail '] }}",
+        "subject": "=Research Draft: {{ $json[' Topic '] }} [{{ $json[' RequestID '] }}]",
+        "message": "=<p><strong>Review Instructions:</strong></p>\n<ul>\n  <li>To approve this research, reply with <code>APPROVED</code>.</li>\n  <li>To request changes, reply starting with <code>FEEDBACK:</code> followed by your comments.</li>\n</ul>\n<p><strong>Request ID:</strong> {{ $json[' RequestID '] }}</p>\n<hr />\n{{ $json[' ReportHtml '] }}",
+        "options": {
+          "appendAttribution": false
+        }
       },
-      "id": "e3456789-abcd-ef01-2345-6789abcdef01",
-      "name": "Send Final Summary Email",
       "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "typeVersion": 2.2,
       "position": [
-        2500,
-        200
+        1600,
+        280
       ],
+      "id": "5cea5d3b-423f-40d4-b7ae-1462f2930e64",
+      "name": "Send Draft for Review",
+      "webhookId": "3f91b3eb-d1fe-4311-8315-48e1ea4fe167",
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
-          "name": "Gmail OAuth2 API"
+          "name": "Google OAuth"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const inputData = $input.first().json;\nconst text = inputData.body || inputData.text || inputData.message || inputData.response || '';\nconst feedbackComments = text.replace(/^FEEDBACK:\\s*/i, '').trim();\n\nreturn {\n  json: {\n    ...inputData,\n    feedback_text: feedbackComments,\n    feedbackComments: feedbackComments,\n    comments: feedbackComments\n  }\n};"
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:\"Research Draft:\"",
+          "readStatus": "unread"
+        }
       },
-      "id": "e7f89012-3456-789a-bcde-f0123456789a",
-      "name": "Extract Feedback Comments",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
       "position": [
-        1780,
-        440
-      ]
+        300,
+        900
+      ],
+      "id": "818435b2-e11d-4744-bb8a-1d85b0a865fe",
+      "name": "Reviewer Reply Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Google OAuth"
+        }
+      }
     },
     {
       "parameters": {
-        "resource": "chat",
-        "operation": "complete",
-        "model": {
+        "jsCode": "const subject = $json.Subject || $json.subject || '';\nconst snippet = $json.snippet || $json.textPlain || $json.textHtml || '';\nconst newReplyText = snippet.split(/On\\s+.*wrote:/i)[0].trim();\nconst requestIdMatch = subject.match(/REQ-\\d+/i) || newReplyText.match(/REQ-\\d+/i);\nconst requestId = requestIdMatch ? requestIdMatch[0].toUpperCase() : '';\nconst normalized = newReplyText.trim();\nconst upper = normalized.toUpperCase();\nlet responseType = 'UNKNOWN';\nlet feedbackText = '';\n\nif (upper.startsWith('APPROVED') || upper.includes('\\nAPPROVED')) {\n  responseType = 'APPROVED';\n} else {\n  const feedbackMatch = normalized.match(/FEEDBACK:\\s*([\\s\\S]*)/i);\n  if (feedbackMatch) {\n    responseType = 'FEEDBACK';\n    feedbackText = feedbackMatch[1].trim();\n  }\n}\n\nreturn [{\n  json: {\n    requestId,\n    responseType,\n    feedbackText,\n    replyText: normalized,\n    subject\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        900
+      ],
+      "id": "977e7913-6820-4021-961c-ed7aea8ba177",
+      "name": "Classify Reviewer Reply"
+    },
+    {
+      "parameters": {
+        "documentId": {
           "__rl": true,
+          "value": "INPUT_YOUR_SHEET_ID_HERE",
           "mode": "list",
-          "value": "gpt-4o-mini"
+          "cachedResultName": "ResearchRequests",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
         },
-        "prompt": {
-          "messages": [
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "mode": "url"
+        },
+        "filtersUI": {
+          "values": [
             {
-              "role": "system",
-              "content": "You are an expert research analyst. You will receive an original research topic, the current HTML research report, and the reviewer's feedback comments. Revise and enhance the HTML research report to address and incorporate the feedback. Utilize semantic tags like <h1>, <h2>, <p>, and unordered lists (<ul>, <li>). Do not output markdown code blocks (no ```html), <html>, or <body> wrapper tags. Return only the revised, clean semantic HTML markup."
-            },
+              "lookupColumn": " RequestID ",
+              "lookupValue": "={{ $json.requestId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        780,
+        900
+      ],
+      "id": "6d04691f-be3e-429c-8c44-040ec39e0746",
+      "name": "Lookup Request Row",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ekUCZ7Zpwvaz2QzN",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
             {
-              "role": "user",
-              "content": "=Original Topic: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}\n\nCurrent HTML Report:\n{{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').isExecuted ? ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) : '') }}\n\nReviewer Feedback Comments:\n{{ $json.feedback_text || $json.feedbackComments || $json.comments || ($json.body || $json.text || $json.message || '').replace(/^FEEDBACK:\\s*/i, '').trim() }}"
+              "id": "23b9f2b2-1ae8-49e7-989b-9268fcf127dd",
+              "leftValue": "={{ $('Classify Reviewer Reply').item.json.responseType }}",
+              "rightValue": "APPROVED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1020,
+        900
+      ],
+      "id": "dc665e86-5450-416c-aad9-68b4bd165bad",
+      "name": "Is Approved?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "64a4bcc7-af1e-4084-bd6f-0a23cadb29a3",
+              "leftValue": "={{ $('Classify Reviewer Reply').item.json.responseType }}",
+              "rightValue": "FEEDBACK",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1260,
+        1040
+      ],
+      "id": "420a9c0b-2d0f-4d0c-a34c-feb83f372925",
+      "name": "Is Feedback?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        1200
+      ],
+      "id": "a16fc708-82c3-4bb8-9b4d-7207e532d7be",
+      "name": "Ignore Unrecognized Reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdfshift.io/v3/convert/pdf",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $credentials.pdfShiftApi.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json[' ReportHtml '].trim().toLowerCase().startsWith('<html') || $json[' ReportHtml '].trim().toLowerCase().startsWith('<!doctype') ? $json[' ReportHtml '].trim() : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>' + $json[' Topic '].trim() + '</title></head><body>' + $json[' ReportHtml '].trim() + '</body></html>' }}"
             }
           ]
         },
         "options": {
-          "temperature": 0.3
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
         }
       },
-      "id": "f8901234-5678-9abc-def0-123456789abc",
-      "name": "Revise Report with Feedback",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.4,
+      "id": "af9ebb13-2f39-4898-900e-efa6b12699fa",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
       "position": [
-        2020,
-        440
+        1260,
+        760
       ],
       "credentials": {
-        "openAiApi": {
-          "id": "4",
-          "name": "OpenAI API"
+        "httpHeaderAuth": {
+          "id": "pdfshift_api_key_001",
+          "name": "PDFShift API"
         }
       }
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "send",
-        "sendTo": "={{ $('Webhook (Form Input)').first().json.body?.reviewer_email || $('Webhook (Form Input)').first().json.reviewer_email || '' }}",
-        "subject": "=Revised Research Report: {{ $('Webhook (Form Input)').first().json.body?.topic || $('Webhook (Form Input)').first().json.topic || '' }}",
-        "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.reportHtml || $json.message?.content || $json.text }}\n</div>",
+        "name": "={{ $('Lookup Request Row').item.json[' Topic '].trim() }} - Research Report.pdf",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
         "options": {}
       },
-      "id": "a9012345-6789-abcdef-0123-456789abcdef",
-      "name": "Send Revised Report to Reviewer",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [
-        2260,
-        440
+        1500,
+        760
       ],
+      "id": "b0905efc-ee23-42fe-b2f7-c27225a61f78",
+      "name": "Upload PDF to Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "vCOWlNFHjPCxhkkp",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "mode": "list",
+          "cachedResultName": "ResearchRequests",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            " RequestID ": "={{ $('Lookup Request Row').item.json[' RequestID '] }}",
+            " Status ": "Completed",
+            " DriveLink ": "={{ $json.webViewLink || $json.webContentLink || $json.id }}"
+          },
+          "matchingColumns": [
+            " RequestID "
+          ],
+          "schema": [
+            {
+              "id": " RequestID ",
+              "displayName": " RequestID ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Status ",
+              "displayName": " Status ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " DriveLink ",
+              "displayName": " DriveLink ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1740,
+        760
+      ],
+      "id": "3e803f50-452c-434f-b4e3-9a4bdd57839d",
+      "name": "Mark Request Completed",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ekUCZ7Zpwvaz2QzN",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Lookup Request Row').item.json[' ReviewerEmail '] }}",
+        "subject": "=Research Completed: {{ $('Lookup Request Row').item.json[' Topic '].trim() }}",
+        "message": "=<p>Your research report is complete.</p>\n<p><strong>Topic:</strong> {{ $('Lookup Request Row').item.json[' Topic '] }}</p>\n<p><strong>Request ID:</strong> {{ $('Lookup Request Row').item.json[' RequestID '] }}</p>\n<p>You can view the final PDF here:</p>\n<p><a href=\"{{ $('Upload PDF to Drive').item.json.webViewLink || $('Upload PDF to Drive').item.json.webContentLink || $('Upload PDF to Drive').item.json.id }}\">{{ $('Upload PDF to Drive').item.json.webViewLink || $('Upload PDF to Drive').item.json.webContentLink || $('Upload PDF to Drive').item.json.id }}</a></p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        760
+      ],
+      "id": "2f6eaa74-8756-4d56-b9dc-026f6315cc5c",
+      "name": "Send Done Email",
+      "webhookId": "340ce800-26c6-481e-895e-9c4a8db51387",
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
-          "name": "Gmail OAuth2 API"
+          "name": "Google OAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is an existing research report in HTML and feedback from a human reviewer.\n\nTopic: {{ $('Lookup Request Row').item.json[' Topic '] }}\nSubtopics: {{ $('Lookup Request Row').item.json[' Subtopics '] }}\nDescription: {{ $('Lookup Request Row').item.json[' Description '] }}\n\nExisting Report HTML:\n{{ $('Lookup Request Row').item.json[' ReportHtml '] }}\n\nReviewer Feedback:\n{{ $('Classify Reviewer Reply').item.json.feedbackText }}\n\nRevise and improve the HTML report based on the feedback. Return raw HTML only.",
+        "options": {
+          "systemMessage": "You are an expert research editor. Revise the provided HTML report based strictly on the reviewer's feedback.\n\nRules:\n- Return raw valid HTML only.\n- Do not include Markdown or code fences.\n- Preserve a complete report structure with title, introduction, findings, analysis, conclusion, and references.\n- Improve clarity and coverage where the reviewer asked for changes."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1500,
+        1040
+      ],
+      "id": "a1e59934-ccee-4483-a7a9-e04e0ae58e3f",
+      "name": "Revise HTML Report",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "INPUT_YOUR_SHEET_ID_HERE",
+          "mode": "list",
+          "cachedResultName": "ResearchRequests",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/INPUT_YOUR_SHEET_ID_HERE/edit#gid=0",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            " RequestID ": "={{ $('Lookup Request Row').item.json[' RequestID '] }}",
+            " ReportHtml ": "={{ $json.output }}",
+            " Status ": "Pending Review",
+            " RevisionCount ": "={{ parseInt($('Lookup Request Row').item.json[' RevisionCount '] || 0, 10) + 1 }}"
+          },
+          "matchingColumns": [
+            " RequestID "
+          ],
+          "schema": [
+            {
+              "id": " RequestID ",
+              "displayName": " RequestID ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " ReportHtml ",
+              "displayName": " ReportHtml ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Status ",
+              "displayName": " Status ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " RevisionCount ",
+              "displayName": " RevisionCount ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1840,
+        1040
+      ],
+      "id": "ec358a6c-597c-4374-aaf5-0e1bc32330e8",
+      "name": "Save Revised Report",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ekUCZ7Zpwvaz2QzN",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json[' ReviewerEmail '] || $('Lookup Request Row').item.json[' ReviewerEmail '] }}",
+        "subject": "=Research Draft: {{ $('Lookup Request Row').item.json[' Topic '] }} [{{ $('Lookup Request Row').item.json[' RequestID '] }}]",
+        "message": "=<p><strong>Revised Draft</strong></p>\n<p>The report has been updated based on your feedback.</p>\n<ul>\n  <li>To approve this research, reply with <code>APPROVED</code>.</li>\n  <li>To request more changes, reply starting with <code>FEEDBACK:</code> followed by your comments.</li>\n</ul>\n<p><strong>Request ID:</strong> {{ $('Lookup Request Row').item.json[' RequestID '] }}</p>\n<p><strong>Revision:</strong> {{ $json[' RevisionCount '] }}</p>\n<hr />\n{{ $json[' ReportHtml '] }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2080,
+        1040
+      ],
+      "id": "32930959-59d5-4a2f-a81f-6161105d83b1",
+      "name": "Resend Revised Draft",
+      "webhookId": "455e4314-3c40-4d1e-99af-29c0016463cd",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uypNuUhTfvPwNQY1",
+          "name": "Google OAuth"
         }
       }
     }
   ],
-  "pinData": {},
   "connections": {
-    "Webhook (Form Input)": {
+    "Research Request Form": {
       "main": [
         [
           {
-            "node": "Query Tavily API",
+            "node": "Prepare Request Metadata",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Query Tavily API": {
+    "Prepare Request Metadata": {
       "main": [
         [
           {
-            "node": "LLM Generate Report",
+            "node": "Search Topic with Tavily",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "LLM Generate Report": {
+    "Search Topic with Tavily": {
       "main": [
         [
           {
-            "node": "Send Gmail to Reviewer",
+            "node": "Generate HTML Report",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send Gmail to Reviewer": {
+    "Generate HTML Report": {
       "main": [
         [
           {
-            "node": "Send and wait for response",
+            "node": "Create Request State Row",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send and wait for response": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate HTML Report",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Revise HTML Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Request State Row": {
       "main": [
         [
           {
-            "node": "Review Decision Switch",
+            "node": "Send Draft for Review",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Review Decision Switch": {
+    "Reviewer Reply Trigger": {
+      "main": [
+        [
+          {
+            "node": "Classify Reviewer Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reviewer Reply": {
+      "main": [
+        [
+          {
+            "node": "Lookup Request Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Request Row": {
+      "main": [
+        [
+          {
+            "node": "Is Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Approved?": {
       "main": [
         [
           {
@@ -472,7 +890,25 @@
         ],
         [
           {
-            "node": "Extract Feedback Comments",
+            "node": "Is Feedback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Feedback?": {
+      "main": [
+        [
+          {
+            "node": "Revise HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore Unrecognized Reply",
             "type": "main",
             "index": 0
           }
@@ -483,62 +919,51 @@
       "main": [
         [
           {
-            "node": "Upload PDF to Google Drive",
+            "node": "Upload PDF to Drive",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Upload PDF to Google Drive": {
+    "Upload PDF to Drive": {
       "main": [
         [
           {
-            "node": "Log to Google Sheets",
+            "node": "Mark Request Completed",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Log to Google Sheets": {
+    "Mark Request Completed": {
       "main": [
         [
           {
-            "node": "Send Final Summary Email",
+            "node": "Send Done Email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract Feedback Comments": {
+    "Revise HTML Report": {
       "main": [
         [
           {
-            "node": "Revise Report with Feedback",
+            "node": "Save Revised Report",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Revise Report with Feedback": {
+    "Save Revised Report": {
       "main": [
         [
           {
-            "node": "Send Revised Report to Reviewer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send Revised Report to Reviewer": {
-      "main": [
-        [
-          {
-            "node": "Send and wait for response",
+            "node": "Resend Revised Draft",
             "type": "main",
             "index": 0
           }
@@ -546,13 +971,9 @@
       ]
     }
   },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "4892c53a-c8e4-4d1a-965a-0bf643dc5277",
+  "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "nardisho-app-n8n-cloud"
+    "instanceId": "REPLACE_WITH_YOUR_INSTANCE_ID"
   }
 }

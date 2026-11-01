@@ -1,70 +1,76 @@
-# n8n Research Pipeline
+# AI Research Pipeline with Tavily and Human Approval
 
-A complete, production-ready research ingestion, iterative review, and automated archiving pipeline connecting a minimalist dark-themed web form to an n8n workflow.
+A production-ready research ingestion, automated synthesis, human-in-the-loop review, and archival pipeline connecting a custom dark-themed web form to an n8n workflow.
 
-## Workspace Structure
+## Workspace Layout
 
 ```
 /home/muaz/projects/n8n-research-pipeline/
-├── index.html                       # Minimalist single-column input form (no card containers)
-├── style.css                        # Dark slate theme styling with emerald green accent
-├── app.js                           # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json                    # Complete n8n workflow JSON with guarded expressions
-├── research-pipeline-corrected.json # Corrected workflow with verified OAuth2 IDs and execution guards
-└── README.md                        # Full pipeline architecture, credentials, and expression safety guide
+├── index.html                       # Minimalist single-column input form (strictly no card containers)
+├── style.css                        # Dark slate background with emerald green accent
+├── app.js                           # Webhook dispatcher with input validation and feedback
+├── workflow.json                    # Complete n8n workflow with hardcoded credentials and safe expressions
+├── research-pipeline-corrected.json # Synchronized copy for import compatibility
+└── README.md                        # Documentation and configuration reference
 ```
 
 ---
 
-## 1. Web Form Interface
+## 1. Minimalist Web Form Interface
 
-### Features
-- **Design Specifications**: Minimalist, dark-themed UI featuring a deep dark slate palette (`#0b1120`, `#0f172a`, `#1e293b`) with emerald green accent highlights (`#10b981`).
-- **Layout**: Single-column stacked vertical layout with no card containers, bounding boxes, or card shadows. Form fields flow directly within the document canvas.
+- **Theme & Colors**: Dark slate background (`#0b1120`, `#0f172a`), emerald green accent (`#10b981`).
+- **Layout**: Single-column vertically stacked layout flowing directly into the canvas. Strictly excludes card containers, outer boxes, or container drop shadows.
 - **Fields Collected**:
-  - `topic`: Primary query string passed directly to the search provider.
-  - `subtopics`: Auxiliary domains or secondary angles for targeted search expansion.
-  - `description`: Detailed research context, criteria, or constraints.
-  - `reviewer_email`: Email address for downstream alert and review stages.
-- **Client Logic (`app.js`)**: Asynchronously submits the JSON payload via `fetch` to the configured n8n webhook and displays responsive, minimalist feedback.
+  - `topic`: Core search query.
+  - `subtopics`: Specific research angles or secondary focus areas.
+  - `description`: Detailed instructions, context, or criteria.
+  - `reviewer_email`: Recipient for review drafts and final notifications.
+- **Client Script (`app.js`)**: Validates required fields and posts a JSON payload to the configured n8n webhook endpoint.
 
 ---
 
-## 2. End-to-End Workflow Architecture
+## 2. n8n Workflow Architecture
 
 ```mermaid
 flowchart TD
-    A["Webhook (Form Input)"] --> B["Query Tavily API"]
-    B --> C["LLM Generate Report"]
-    C --> D["Send Gmail to Reviewer<br/>(Initial Draft)"]
-    D --> E["Send and wait for response<br/>(Wait for Reply)"]
-    E --> F{"Review Decision Switch"}
-    
+    A["1. Webhook (Form Input)<br/>(topic, subtopics, description, reviewer_email)"] --> B["2. Query Tavily API<br/>(HTTP Request)"]
+    B --> C["3. LLM Generate Report<br/>(OpenAI: Semantic HTML)"]
+    C --> D["4. Send Gmail to Reviewer<br/>(Initial Draft Email)"]
+    D --> E["5. Send and wait for response<br/>(Gmail sendAndWait)"]
+    E --> F{"6. Review Decision Switch<br/>('APPROVED' vs 'FEEDBACK:')"}
+
     %% Approval Branch
-    F -->|Branch 0: Contains 'APPROVED'| G["1) Convert HTML to PDF<br/>(HTTP Request Node)"]
-    G --> H["2) Upload PDF to Google Drive<br/>(Named after topic)"]
-    H --> I["3) Log to Google Sheets<br/>(Timestamp, Topic, Subtopics, Desc, Email, Drive Link, Status)"]
-    I --> J["4) Send Final Summary Email<br/>(Summary + Drive PDF Link)"]
-    
+    F -->|Branch 0: Contains 'APPROVED'| G["7. Convert HTML to PDF<br/>(HTTP Request)"]
+    G --> H["8. Upload PDF to Google Drive<br/>(topic.pdf)"]
+    H --> I["9. Log to Google Sheets<br/>(Timestamp, Topic, Subtopics, Desc, Email, Drive Link, Status)"]
+    I --> J["10. Send Final Summary Email<br/>(Summary + Drive PDF Link)"]
+
     %% Feedback Branch
-    F -->|Branch 1: Starts with 'FEEDBACK:'| K["Extract Feedback Comments"]
-    K --> L["Revise Report with Feedback<br/>(LLM Node)"]
+    F -->|Branch 1: Starts with 'FEEDBACK:'| K["Extract Feedback Comments<br/>(Code Node)"]
+    K --> L["Revise Report with Feedback<br/>(OpenAI Node)"]
     L --> M["Send Revised Report to Reviewer<br/>(Gmail Node)"]
     M -->|Loop Back| E
 ```
 
 ---
 
-## 3. Resilient Expression Handling in n8n
+## 3. Injected Credential Mappings
 
-### A. Paired Item Lineage (`.first().json`)
-When an n8n workflow passes through a Wait node (`sendAndWait`), conditional branching (`Switch`), or feedback loops, direct item-pairing is broken. To access initial trigger or upstream data from any downstream node without `No path back to referenced node` errors, expressions use `.first().json`:
-```javascript
-$('Webhook (Form Input)').first().json.body?.topic
-```
+All nodes requiring credentials have their properties mapped to the target IDs:
 
-### B. Unexecuted Node Guards (`.isExecuted`)
-When conditional branches diverge (e.g. Approval vs Feedback), referencing a node that ran in the opposite branch or on a subsequent iteration causes `An expression references this node, but the node is unexecuted`. All cross-branch expressions are wrapped with `.isExecuted` guards:
-```javascript
-{{ $('Revise Report with Feedback').isExecuted ? $('Revise Report with Feedback').first().json.message?.content : ($('LLM Generate Report').isExecuted ? $('LLM Generate Report').first().json.message?.content : '') }}
-```
+| Service | Credential Name / Type | Injected ID | Nodes Configured |
+| :--- | :--- | :--- | :--- |
+| **OpenAI** | `OpenAI API` / `openAiApi` | `4` | `LLM Generate Report`, `Revise Report with Feedback` |
+| **Gmail** | `Gmail OAuth2 API` / `gmailOAuth2` | `uypNuUhTfvPwNQY1` | `Send Gmail to Reviewer`, `Send and wait for response`, `Send Revised Report to Reviewer`, `Send Final Summary Email` |
+| **Google Drive** | `Google Drive OAuth2 API` / `googleDriveOAuth2Api` | `vCOWlNFHjPCxhkkp` | `Upload PDF to Google Drive` |
+| **Google Sheets** | `Google Sheets OAuth2 API` / `googleSheetsOAuth2Api` | `ekUCZ7Zpwvaz2QzN` | `Log to Google Sheets` |
+
+---
+
+## 4. Expression Safety & Lineage Integrity
+
+- **Global Lineage**: All references to initial trigger fields use `$('Webhook (Form Input)').first().json...` instead of `.item.json`, ensuring data remains accessible after the human-in-the-loop Wait node.
+- **Unexecuted Branch Fallbacks**: Downstream nodes safely fall back without throwing unexecuted branch errors:
+  ```javascript
+  {{ $('Revise Report with Feedback').isExecuted ? ($('Revise Report with Feedback').first().json.reportHtml || $('Revise Report with Feedback').first().json.message?.content || $('Revise Report with Feedback').first().json.text) : ($('LLM Generate Report').first().json.reportHtml || $('LLM Generate Report').first().json.message?.content || $('LLM Generate Report').first().json.text) }}
+  ```
