@@ -13,10 +13,7 @@
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        260,
-        340
-      ],
+      "position": [260, 340],
       "webhookId": "research-request"
     },
     {
@@ -47,10 +44,7 @@
       "name": "Query Tavily API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        520,
-        340
-      ]
+      "position": [520, 340]
     },
     {
       "parameters": {
@@ -81,10 +75,7 @@
       "name": "LLM Generate Report",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1.4,
-      "position": [
-        780,
-        340
-      ],
+      "position": [780, 340],
       "credentials": {
         "openAiApi": {
           "id": "4",
@@ -106,10 +97,7 @@
       "name": "Send Gmail to Reviewer",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [
-        1040,
-        340
-      ],
+      "position": [1040, 340],
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
@@ -130,10 +118,7 @@
       "name": "Send and wait for response",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [
-        1280,
-        340
-      ],
+      "position": [1280, 340],
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
@@ -193,10 +178,7 @@
       "name": "Review Decision Switch",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [
-        1520,
-        340
-      ]
+      "position": [1520, 340]
     },
     {
       "parameters": {
@@ -227,10 +209,7 @@
       "name": "Convert HTML to PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1780,
-        200
-      ]
+      "position": [1780, 200]
     },
     {
       "parameters": {
@@ -244,10 +223,7 @@
       "name": "Upload PDF to Google Drive",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [
-        2020,
-        200
-      ],
+      "position": [2020, 200],
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "vCOWlNFHjPCxhkkp",
@@ -284,10 +260,7 @@
       "name": "Log to Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [
-        2260,
-        200
-      ],
+      "position": [2260, 200],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "ekUCZ7Zpwvaz2QzN",
@@ -309,10 +282,7 @@
       "name": "Send Final Summary Email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [
-        2500,
-        200
-      ],
+      "position": [2500, 200],
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
@@ -328,10 +298,7 @@
       "name": "Extract Feedback Comments",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1780,
-        440
-      ]
+      "position": [1780, 440]
     },
     {
       "parameters": {
@@ -362,10 +329,7 @@
       "name": "Revise Report with Feedback",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1.4,
-      "position": [
-        2020,
-        440
-      ],
+      "position": [2020, 440],
       "credentials": {
         "openAiApi": {
           "id": "4",
@@ -380,17 +344,14 @@
         "sendTo": "={{ $('Webhook Trigger').item.json.body?.reviewer_email || $('Webhook Trigger').item.json.reviewer_email }}",
         "subject": "=Revised Research Report: {{ $('Webhook Trigger').item.json.body?.topic || $('Webhook Trigger').item.json.topic }}",
         "emailType": "html",
-        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review this report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.message?.content || $json.reportHtml || $json.text }}\n</div>",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;\">\n  <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n    <p style=\"margin: 0; font-weight: 600; color: #0f172a;\">Instructions:</p>\n    <p style=\"margin: 4px 0 0 0;\">Please review the report and reply with either 'APPROVED' or 'FEEDBACK: [comments]'.</p>\n  </div>\n  \n  {{ $json.message?.content || $json.reportHtml || $json.text }}\n</div>",
         "options": {}
       },
       "id": "a9012345-6789-abcdef-0123-456789abcdef",
       "name": "Send Revised Report to Reviewer",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [
-        2260,
-        440
-      ],
+      "position": [2260, 440],
       "credentials": {
         "gmailOAuth2": {
           "id": "uypNuUhTfvPwNQY1",
