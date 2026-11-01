@@ -6,11 +6,12 @@ A complete, production-ready research ingestion, iterative review, and automated
 
 ```
 /home/muaz/projects/n8n-research-pipeline/
-├── index.html        # Minimalist single-column input form (no card containers)
-├── style.css         # Dark slate theme styling with emerald green accent
-├── app.js            # Form submission handler dispatching JSON to n8n webhook
-├── workflow.json     # Complete end-to-end n8n workflow JSON with mapped OAuth2 credentials
-└── README.md         # Full pipeline architecture, credentials setup, and documentation
+├── index.html                       # Minimalist single-column input form (no card containers)
+├── style.css                        # Dark slate theme styling with emerald green accent
+├── app.js                           # Form submission handler dispatching JSON to n8n webhook
+├── workflow.json                    # Complete n8n workflow JSON with guarded expressions
+├── research-pipeline-corrected.json # Corrected workflow with verified OAuth2 IDs and execution guards
+└── README.md                        # Full pipeline architecture, credentials, and expression safety guide
 ```
 
 ---
@@ -27,20 +28,13 @@ A complete, production-ready research ingestion, iterative review, and automated
   - `reviewer_email`: Email address for downstream alert and review stages.
 - **Client Logic (`app.js`)**: Asynchronously submits the JSON payload via `fetch` to the configured n8n webhook and displays responsive, minimalist feedback.
 
-### Quick Preview
-To serve the form locally:
-```bash
-python3 -m http.server 3000 --directory /home/muaz/projects/n8n-research-pipeline
-```
-Then open `http://localhost:3000` in your browser.
-
 ---
 
-## 2. End-to-End Workflow Architecture (`workflow.json`)
+## 2. End-to-End Workflow Architecture
 
 ```mermaid
 flowchart TD
-    A["Webhook Trigger"] --> B["Query Tavily API"]
+    A["Webhook (Form Input)"] --> B["Query Tavily API"]
     B --> C["LLM Generate Report"]
     C --> D["Send Gmail to Reviewer<br/>(Initial Draft)"]
     D --> E["Send and wait for response<br/>(Wait for Reply)"]
@@ -61,74 +55,16 @@ flowchart TD
 
 ---
 
-## 3. Google OAuth2 Credentials Setup Guide
+## 3. Resilient Expression Handling in n8n
 
-To resolve execution errors on **Gmail**, **Google Drive**, and **Google Sheets** nodes, configure an OAuth2 App in Google Cloud Console.
+### A. Paired Item Lineage (`.first().json`)
+When an n8n workflow passes through a Wait node (`sendAndWait`), conditional branching (`Switch`), or feedback loops, direct item-pairing is broken. To access initial trigger or upstream data from any downstream node without `No path back to referenced node` errors, expressions use `.first().json`:
+```javascript
+$('Webhook (Form Input)').first().json.body?.topic
+```
 
-### Part A: Google Cloud Console Configuration
-
-1. **Create or Select a Project**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/).
-   - Click the project dropdown (top left) and click **New Project** (e.g. `n8n-research-pipeline`).
-
-2. **Enable Required Google APIs**:
-   - Navigate to **APIs & Services** &rarr; **Library**.
-   - Search for and enable each of the following:
-     - **Gmail API**
-     - **Google Drive API**
-     - **Google Sheets API**
-
-3. **Configure the OAuth Consent Screen**:
-   - Navigate to **APIs & Services** &rarr; **OAuth consent screen**.
-   - Choose **External** (or **Internal** if using Google Workspace) and click **Create**.
-   - Fill in:
-     - **App name**: `n8n Research Pipeline`
-     - **User support email**: Your email
-     - **Developer contact information**: Your email
-   - Click **Save and Continue**.
-   - On the **Scopes** page, click **Save and Continue**.
-   - On the **Test Users** page, click **Add Users** and enter your Google account email. Click **Save and Continue**.
-
-4. **Create OAuth 2.0 Client ID & Secret**:
-   - Navigate to **APIs & Services** &rarr; **Credentials**.
-   - Click **+ Create Credentials** &rarr; select **OAuth client ID**.
-   - Set **Application type**: **Web application**.
-   - Set **Name**: `n8n Client`.
-   - Under **Authorized redirect URIs**, click **+ Add URI** and paste:
-     ```
-     http://localhost:5678/rest/oauth2-credential/callback
-     ```
-     *(If using a hosted domain or tunnel, replace `http://localhost:5678` with your base n8n URL, e.g. `https://n8n.yourdomain.com/rest/oauth2-credential/callback`)*.
-   - Click **Create**. Copy your **Client ID** and **Client Secret**.
-
----
-
-### Part B: Connect Credentials inside n8n
-
-You can reuse the **same Client ID and Client Secret** across all three Google credential types:
-
-1. Open your n8n interface (`http://localhost:5678`).
-2. Go to **Credentials** (left menu) &rarr; click **Add Credential** (top right):
-
-#### 1. Gmail (`Gmail OAuth2 API`)
-- Search for **Gmail OAuth2 API**.
-- Name it: `Gmail OAuth2 API`.
-- Paste your **Client ID** and **Client Secret**.
-- Click **Sign in with Google**. In the popup, choose your account, click **Advanced** &rarr; **Go to n8n (unsafe)**, and grant permissions.
-- Click **Save**.
-
-#### 2. Google Drive (`Google Drive OAuth2 API`)
-- Click **Add Credential** &rarr; search for **Google Drive OAuth2 API**.
-- Name it: `Google Drive OAuth2 API`.
-- Paste the same **Client ID** and **Client Secret**.
-- Click **Sign in with Google** and approve permissions.
-- Click **Save**.
-
-#### 3. Google Sheets (`Google Sheets OAuth2 API`)
-- Click **Add Credential** &rarr; search for **Google Sheets OAuth2 API**.
-- Name it: `Google Sheets OAuth2 API`.
-- Paste the same **Client ID** and **Client Secret**.
-- Click **Sign in with Google** and approve permissions.
-- Click **Save**.
-
-Once saved, import or refresh [workflow.json](file:///home/muaz/projects/n8n-research-pipeline/workflow.json) and all Google nodes will execute with valid authentication.
+### B. Unexecuted Node Guards (`.isExecuted`)
+When conditional branches diverge (e.g. Approval vs Feedback), referencing a node that ran in the opposite branch or on a subsequent iteration causes `An expression references this node, but the node is unexecuted`. All cross-branch expressions are wrapped with `.isExecuted` guards:
+```javascript
+{{ $('Revise Report with Feedback').isExecuted ? $('Revise Report with Feedback').first().json.message?.content : ($('LLM Generate Report').isExecuted ? $('LLM Generate Report').first().json.message?.content : '') }}
+```
